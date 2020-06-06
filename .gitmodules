@@ -1,0 +1,3 @@
+[submodule "projects/BlockBoombox"]
+	path = projects/BlockBoombox
+	url = https://github.com/HuangDave/BlockBoombox.git
