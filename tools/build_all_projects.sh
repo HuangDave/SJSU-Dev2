@@ -66,7 +66,7 @@ do
   # Clean the build and start building from scratch
   SILENCE=$(make clean)
   # Check if the system can build without any warnings!
-  SILENCE=$(make -j4 application WARNING_BECOME_ERRORS=-Werror)
+  make -j4 application WARNING_BECOME_ERRORS=-Werror
   # Add the return codes of the previous build capture. None zero means that at
   # least one of the captures failed.
   SPECIFIC_BUILD_CAPTURE=$?
