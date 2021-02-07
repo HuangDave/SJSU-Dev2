@@ -11,6 +11,7 @@ CYAN    = $(shell echo "\x1B[36;1m")
 WHITE   = $(shell echo "\x1B[37;1m")
 RESET   = $(shell echo "\x1B[0m")
 DIVIDER = ======================================================================
+DIVIDER2 = ---------------------------------------------------------------------
 
 # ==============================================================================
 # Report an error if SJSU_DEV2_BASE does not exist
@@ -44,16 +45,20 @@ endif
 
 .DEFAULT_GOAL := help
 
-# ==============================================================================
-# Enable Undefined Variable Use Warnings
-# ==============================================================================
-
-MAKEFLAGS += --warn-undefined-variables
-
 # Make sure MAKECMDGOALS is defined, so it doesn't cause an error itself
 ifndef MAKECMDGOALS
 MAKECMDGOALS = help
 endif
+
+# ==============================================================================
+# Programming Parameters
+#
+# Variables used program and flash devices.
+# ==============================================================================
+OPTIMIZE        ?= g
+# JTAG          ?= stlink
+# PORT          ?=
+# OPENOCD_CONFIG
 
 # ==============================================================================
 # Directories
@@ -64,7 +69,7 @@ SJ2_SOURCE_DIR           = source
 SJ2_LOCAL_LIBRARY_DIR    = library
 SJ2_CURRENT_DIRECTORY    = $(shell pwd)
 SJ2_TOOLS_DIR            = $(SJSU_DEV2_BASE)/tools
-SJ2_BUILD_DIR            = $(SJ2_BUILD_DIRECTORY_NAME)/$(PLATFORM)
+SJ2_BUILD_DIR            = $(SJ2_BUILD_DIRECTORY_NAME)/$(PLATFORM)/$(OPTIMIZE)
 SJ2_OBJECT_DIR           = $(SJ2_BUILD_DIR)/objects
 SJ2_TEST_EXECUTABLE_DIR  = $(SJ2_BUILD_DIRECTORY_NAME)/test
 SJ2_TEST_OBJECT_DIR      = $(SJ2_TEST_EXECUTABLE_DIR)/objects
@@ -99,6 +104,7 @@ SJ2_DEFAULT_CFLAGS   = -g -fmessage-length=0 -fexceptions -ffunction-sections \
                        -Wno-main -Wno-variadic-macros -Wall -Wextra -Wshadow \
                        -Wfloat-equal -Wundef -Wno-format-nonliteral \
                        -Wconversion -Wdouble-promotion -Wswitch -Wformat=2 \
+											 -Wno-missing-field-initializers \
                        -Wno-uninitialized -Wnull-dereference \
 											 -fdiagnostics-color -MMD -MP
 
@@ -110,23 +116,6 @@ SJ2_DEFAULT_LDFLAGS  = -fexceptions -Wl,--gc-sections -Wl,-Map,"$(MAP)" \
                        --specs=nano.specs --specs=rdimon.specs \
                        -Wl,--wrap=snprintf \
 
-											# -Wl,--wrap=__cxa_get_globals \
-                       -Wl,--wrap=__cxa_allocate_exception \
-                       -Wl,--wrap=__cxa_free_exception \
-											-Wl,--wrap=__cxa_get_globals_fast \
-											-Wl,--wrap=__cxa_atexit \
-											-Wl,--wrap=__cxa_call_terminate \
-											-Wl,--wrap=__cxa_begin_cleanup \
-											-Wl,--wrap=__cxa_end_catch \
-											-Wl,--wrap=__cxa_begin_catch \
-											-Wl,--wrap=__cxa_rethrow \
-											-Wl,--wrap=__cxa_type_match \
-											-Wl,--wrap=__cxa_call_unexpected \
-											-Wl,--wrap=__cxa_throw \
-											-Wl,--wrap=__gnu_unwind_execute \
-											-Wl,--wrap=_Unwind_VRS_Pop \
-											-Wl,--wrap=__gnu_unwind_pr_common
-
 SJ2_DEFAULT_SOURCES  = source/main.cpp
 
 # ==============================================================================
@@ -137,7 +126,8 @@ SJ2_DEFAULT_TESTS       = # test/unit_test.cpp
 SJ2_DEFAULT_TEST_FLAGS := \
                 -g --coverage -fPIC -fexceptions -fno-inline -fno-builtin \
                 -fno-inline-small-functions -fno-default-inline \
-                -fkeep-inline-functions -fno-elide-constructors  \
+                -fkeep-inline-functions -fno-elide-constructors \
+                -fprofile-arcs -ftest-coverage \
                 -fdiagnostics-color -fno-stack-protector -fsanitize=address \
                 -Wall -Wno-variadic-macros -Wextra -Wshadow -Wno-main \
                 -Wno-missing-field-initializers \
@@ -163,7 +153,6 @@ SJ2_DEFAULT_TEST_FLAGS := \
 WARNING_BECOME_ERRORS ?=
 
 PLATFORM        ?= $(SJ2_DEFAULT_PLATFORM)
-OPTIMIZE        ?= g
 INCLUDES        ?= $(SJ2_DEFAULT_INCLUDES)
 SYSTEM_INCLUDES ?=
 SOURCES         ?= $(SJ2_DEFAULT_SOURCES)
@@ -173,15 +162,6 @@ LDFLAGS         ?= $(SJ2_DEFAULT_LDFLAGS)
 SOURCES         ?= $(SJ2_DEFAULT_SOURCES)
 TESTS           ?= $(SJ2_DEFAULT_TESTS)
 TEST_ARGUMENTS  ?=
-
-# ==============================================================================
-# Programming Parameters
-#
-# Variables used program and flash devices.
-# ==============================================================================
-# JTAG            ?= stlink
-# PORT            ?= /dev/ttyUSB0
-# OPENOCD_CONFIG
 
 # ==============================================================================
 # Tool chain paths
@@ -209,9 +189,9 @@ GDBINIT_PATH    = $(SJ2_TOOLS_DIR)/gdb_dashboard/gdbinit
 # Macro for building static library files
 # ==============================================================================
 
-SJ2_CORE_STATIC_LIBRARY = $(SJ2_OBJECT_DIR)/libsjsudev2.a
+SJ2_CORE_STATIC_LIBRARY = $(SJ2_OBJECT_DIR)/$(OPTIMIZE)/libsjsudev2.a
 SJ2_STATIC_LIBRARY_ROOT = $(LIBRARY_DIR)/static_libraries
-SJ2_STATIC_LIBRARY_DIR  = $(LIBRARY_DIR)/static_libraries/$(PLATFORM)
+SJ2_STATIC_LIBRARY_DIR  = $(SJ2_STATIC_LIBRARY_ROOT)/$(PLATFORM)/$(OPTIMIZE)
 
 define BUILD_LIBRARY
 
@@ -277,7 +257,7 @@ HOST_SYMBOLIZER    = $(SJCLANG)/bin/llvm-symbolizer
 # Final Flag Compositions
 # ==============================================================================
 
-LINKER_SCRIPT   ?= $(LIBRARY_DIR)/L0_Platform/$(PLATFORM)/linker.ld
+LINKER_SCRIPT   ?= $(LIBRARY_DIR)/platforms/targets/$(PLATFORM)/linker.ld
 
 INCLUDES        := $(addsuffix ", $(addprefix -I", $(INCLUDES)))
 SYSTEM_INCLUDES := $(addsuffix ", $(addprefix -isystem", $(SYSTEM_INCLUDES)))
@@ -311,9 +291,9 @@ endif
 # Rebuild source files if header file dependencies changes
 # ==============================================================================
 
--include       $(OBJECTS:.o=.d)
--include       $(SJ2_TEST_OBJECTS:.o=.d)
--include       $(LINKER_SCRIPT:.ld=.d)
+-include $(OBJECTS:.o=.d)
+-include $(SJ2_TEST_OBJECTS:.o=.d)
+-include $(LINKER_SCRIPT:.ld=.d)
 
 # ==============================================================================
 # Phony Targets Declaration
@@ -335,12 +315,20 @@ help:
 	GREP_COLOR='1;34' grep --color=always -e "==" -e '**'
 
 
+start-message:
+	@printf "$(BLUE)$(DIVIDER2)$(RESET)\n"
+	@printf "$(BLUE)PLATFORM = $(RESET)'$(PLATFORM)' "
+	@printf "$(BLUE)OPTIMIZE = $(RESET)'$(OPTIMIZE)' "
+	@printf "$(BLUE)JTAG = $(RESET)'$(JTAG)'\n"
+	@printf "$(BLUE)$(DIVIDER2)$(RESET)\n"
+
+
 # ==============================================================================
 # Application Build Targets
 # ==============================================================================
 
 
-application: | $(HEX) $(BINARY) $(LIST) $(SRC_LIST) $(SIZE)
+application: | start-message $(HEX) $(BINARY) $(LIST) $(SRC_LIST) $(SIZE)
 
 
 # ==============================================================================
@@ -355,14 +343,14 @@ jtag-flash: application
 			-c "program \"$(EXECUTABLE)\" reset exit"
 
 
-flash: | application $(FLASHING_RECIPE)
+flash: | start-message application $(FLASHING_RECIPE)
 
 
 program: jtag-flash
 execute: flash
 
 
-debug:
+debug: start-message
 	@printf '$(MAGENTA)Starting firmware debug...$(RESET)\n'
 	@$(SJ2_TOOLS_DIR)/launch_openocd_gdb.sh \
 			"$(DEVICE_GDB)" \
@@ -374,7 +362,7 @@ debug:
 			"$(OPENOCD_CONFIG)" \
 
 
-debug-test:
+debug-test: start-message
 	gdb -ex "source $(GDBINIT_PATH)" $(TEST_EXECUTABLE)
 
 
@@ -387,12 +375,12 @@ stacktrace:
 # ==============================================================================
 
 
-clean:
+clean: start-message
 	rm -fr $(SJ2_BUILD_DIRECTORY_NAME)
 	@mkdir -p $(SJ2_BUILD_DIRECTORY_NAME)
 
 
-library-clean:
+library-clean: start-message
 	rm -fr $(SJ2_STATIC_LIBRARY_ROOT)
 	@mkdir -p $(SJ2_STATIC_LIBRARY_ROOT)
 
@@ -409,22 +397,17 @@ clean-coverage:
 	@rm -f $(SJ2_COVERAGE_FILES) 2> /dev/null
 
 
-
-
-
 coverage:
 	@printf '$(YELLOW)Generating Coverage Files $(RESET) : '
-
 	@mkdir -p "$(SJ2_COVERAGE_DIR)"
-
-
 	@gcovr \
 		--xml --output $(SJ2_COVERAGE_DIR)/coverage.xml \
 		--html $(SJ2_COVERAGE_DIR)/coverage.html --html-details \
-		--gcov-executable="$(CODE_COVERAGE_TOOL)" --sort-percentage \
-		--filter="$(LIBRARY_DIR)" \
-		-e "$(LIBRARY_DIR)/L0_Platform" \
-		-e "$(LIBRARY_DIR)/L4_Testing" \
+		--exclude-unreachable-branches --exclude-throw-branches \
+		--gcov-executable="$(CODE_COVERAGE_TOOL)" \
+		--sort-percentage --filter="$(LIBRARY_DIR)" \
+		-e "$(LIBRARY_DIR)/platforms" \
+		-e "$(LIBRARY_DIR)/testing" \
 		-e "$(LIBRARY_DIR)/newlib" \
 		-e "$(LIBRARY_DIR)/.*_test.cpp" \
 		-e "$(LIBRARY_DIR)/third_party"
